@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Audio to Synth Notes Encoder</title>
+    <script src="https://unpkg.com/ml5@latest/dist/ml5.min.js"></script>
+</head>
+<body>
+    <h1>Audio to Synth Notes Encoder</h1>
+    <p>Record audio from your microphone (play any sound into it). It will detect pitches in real-time and convert to MIDI notes (60 = Middle C / C4).</p>
+    <p>Each detected note change appends to the current channel with "-". Stop a channel to add "|" and start a new one for multi-channel layering.</p>
+    <button id="startBtn">Start Recording Channel</button>
+    <button id="stopBtn" disabled>Stop Current Channel</button>
+    <button id="finishBtn" disabled>Finish and Download TXT</button>
+    <div>
+        <h2>Encoded String Preview (may truncate if long):</h2>
+        <pre id="output"></pre>
+    </div>
+
+    <script>
+        let audioContext;
+        let pitch;
+        let stream;
+        let currentNote = -1;
+        let noteString = '';
+        let isRecording = false;
+
+        async function startChannel() {
+            if (!audioContext) {
+                audioContext = new AudioContext();
+                stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                pitch = ml5.pitchDetection('https://cdn.jsdelivr.net/gh/ml5js/ml5-data-and-models/models/pitch-detection/crepe/', audioContext, stream, modelLoaded);
+            } else {
+                audioContext.resume();
+            }
+            isRecording = true;
+            document.getElementById('startBtn').disabled = true;
+            document.getElementById('stopBtn').disabled = false;
+            document.getElementById('finishBtn').disabled = false;
+        }
+
+        function modelLoaded() {
+            getPitch();
+        }
+
+        function getPitch() {
+            pitch.getPitch((err, frequency) => {
+                if (frequency && isRecording) {
+                    let midiNum = Math.round(12 * Math.log2(frequency / 440) + 69);
+                    if (midiNum !== currentNote) {
+                        if (noteString === '' || noteString.endsWith('|')) {
+                            noteString += midiNum;
+                        } else {
+                            noteString += '-' + midiNum;
+                        }
+                        currentNote = midiNum;
+                        updateOutput();
+                    }
+                }
+                if (isRecording) {
+                    setTimeout(getPitch, 100); // Check every 100ms for note changes
+                }
+            });
+        }
+
+        function stopChannel() {
+            isRecording = false;
+            if (!noteString.endsWith('|')) {
+                noteString += '|';
+            }
+            updateOutput();
+            document.getElementById('startBtn').disabled = false;
+            document.getElementById('stopBtn').disabled = true;
+        }
+
+        function finishAndDownload() {
+            isRecording = false;
+            if (noteString.endsWith('|')) {
+                noteString = noteString.slice(0, -1);
+            }
+            updateOutput();
+            document.getElementById('startBtn').disabled = false;
+            document.getElementById('stopBtn').disabled = true;
+            document.getElementById('finishBtn').disabled = true;
+
+            // Download as TXT
+            const blob = new Blob([noteString], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'encoded_notes.txt';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        function updateOutput() {
+            document.getElementById('output').innerText = noteString;
+        }
+
+        document.getElementById('startBtn').onclick = startChannel;
+        document.getElementById('stopBtn').onclick = stopChannel;
+        document.getElementById('finishBtn').onclick = finishAndDownload;
+    </script>
+</body>
+</html>
