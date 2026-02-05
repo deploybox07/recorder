@@ -4,12 +4,12 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Audio to Synth Notes Encoder</title>
-    <script src="https://unpkg.com/ml5@latest/dist/ml5.min.js"></script>
 </head>
 <body>
     <h1>Audio to Synth Notes Encoder</h1>
     <p>Record audio from your microphone (play any sound into it). It will detect pitches in real-time and convert to MIDI notes (60 = Middle C / C4).</p>
     <p>Each detected note change appends to the current channel with "-". Stop a channel to add "|" and start a new one for multi-channel layering.</p>
+    <p>Note: This version uses the 'pitchy' library as an alternative to ml5.js, since the CREPE model appears to be unavailable, causing blank outputs. Pitchy is a lightweight, non-ML pitch detector that works well for clear tones.</p>
     <button id="startBtn">Start Recording Channel</button>
     <button id="stopBtn" disabled>Stop Current Channel</button>
     <button id="finishBtn" disabled>Finish and Download TXT</button>
@@ -18,9 +18,11 @@
         <pre id="output"></pre>
     </div>
 
-    <script>
+    <script type="module">
+        import { findPitch } from 'https://esm.sh/pitchy';
+
         let audioContext;
-        let pitch;
+        let analyser;
         let stream;
         let currentNote = -1;
         let noteString = '';
@@ -30,7 +32,10 @@
             if (!audioContext) {
                 audioContext = new AudioContext();
                 stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                pitch = ml5.pitchDetection('https://cdn.jsdelivr.net/gh/ml5js/ml5-data-and-models/models/pitch-detection/crepe/', audioContext, stream, modelLoaded);
+                const mic = audioContext.createMediaStreamSource(stream);
+                analyser = audioContext.createAnalyser();
+                analyser.fftSize = 2048;
+                mic.connect(analyser);
             } else {
                 audioContext.resume();
             }
@@ -38,15 +43,15 @@
             document.getElementById('startBtn').disabled = true;
             document.getElementById('stopBtn').disabled = false;
             document.getElementById('finishBtn').disabled = false;
-        }
-
-        function modelLoaded() {
             getPitch();
         }
 
         function getPitch() {
-            pitch.getPitch((err, frequency) => {
-                if (frequency && isRecording) {
+            if (isRecording) {
+                const inputData = new Float32Array(analyser.fftSize);
+                analyser.getFloatTimeDomainData(inputData);
+                const [frequency, clarity] = findPitch(inputData, audioContext.sampleRate);
+                if (frequency && clarity > 0.95) { // Adjust threshold for reliability
                     let midiNum = Math.round(12 * Math.log2(frequency / 440) + 69);
                     if (midiNum !== currentNote) {
                         if (noteString === '' || noteString.endsWith('|')) {
@@ -58,10 +63,8 @@
                         updateOutput();
                     }
                 }
-                if (isRecording) {
-                    setTimeout(getPitch, 100); // Check every 100ms for note changes
-                }
-            });
+                setTimeout(getPitch, 100); // Check every 100ms for note changes
+            }
         }
 
         function stopChannel() {
