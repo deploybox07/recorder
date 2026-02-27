@@ -1,16 +1,32 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>video</title>
-  <style>
-    video { width: 100%; max-width: 800px; background: #000; }
-  </style>
+    <meta charset="UTF-8">
+    <title>video</title>
+    <style>
+        body {
+            margin: 0;
+            background: #000;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            overflow: hidden;
+        }
+        video {
+            width: 100%;
+            height: 100%;
+            max-width: 100vw;
+            max-height: 100vh;
+        }
+    </style>
 </head>
 <body>
-  <video controls autoplay muted>
-    <source src="gif.mp4" type="video/mp4">
-    Your browser does not support the video tag.
-  </video>
+
+    <video controls autoplay muted loop>
+        <source src="trailer.mp4" type="video/mp4">
+        Your browser does not support video.
+    </video>
+
 </body>
 </html>
